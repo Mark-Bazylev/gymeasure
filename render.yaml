@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: gymeasure-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api
+    startCommand: npm run start -w @gymeasure/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_SSL
+        value: "true"

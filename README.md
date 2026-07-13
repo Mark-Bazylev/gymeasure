@@ -1,50 +1,61 @@
-# Welcome to your Expo app 👋
+# Gymeasure
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Private-circle gym app for you and your Gym Buddies: build Training Days, log Sessions, track Volume, Compare progress.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **Mobile:** Expo + NativeWind (`apps/mobile`) — Android APK via EAS
+- **API:** Express + Drizzle (`apps/api`) on Render
+- **DB:** Neon Postgres
+- **Shared:** Zod schemas (`packages/shared`)
 
-   ```bash
-   npm install
-   ```
+See [CONTEXT.md](./CONTEXT.md) for domain language and [docs/adr](./docs/adr) for decisions.
 
-2. Start the app
+## Local setup
 
-   ```bash
-    npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Copy `apps/api/.env.example` → `apps/api/.env` and set `DATABASE_URL` (Neon) + `JWT_SECRET`.
+2. Install and build shared types:
 
 ```bash
-npm run reset-project
+npm install
+npm run build -w @gymeasure/shared
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+3. Push schema / migrate:
 
-## Learn more
+```bash
+npm run db:push
+# or: npm run db:migrate
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+4. Run API + mobile:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run dev:api
+# other terminal
+EXPO_PUBLIC_API_URL=http://localhost:4000 npm run dev:mobile
+```
 
-## Join the community
+On a physical Android device, use your machine LAN IP instead of `localhost`.
 
-Join our community of developers creating universal apps.
+## Deploy API (Render)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Connect this GitHub repo to Render as a Web Service.
+- Root directory: `apps/api` **or** use the root `render.yaml`.
+- Build: `cd ../.. && npm install && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api`
+- Start: `npm run start -w @gymeasure/api` (from monorepo root) — or see `render.yaml`.
+- Env: `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV=production`.
+
+Free Render web services sleep after idle; the app calls `/health` on launch to wake the API.
+
+## Android APK (EAS)
+
+```bash
+cd apps/mobile
+npx eas-cli login
+npx eas-cli init
+# set extra.eas.projectId in app.json
+EXPO_PUBLIC_API_URL=https://YOUR-RENDER-URL npx eas-cli build -p android --profile preview
+```
+
+Share the APK with your buddy, create accounts, exchange invite codes on the Buddies tab.
