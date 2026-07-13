@@ -40,22 +40,6 @@ On a physical Android device, use your machine LAN IP instead of `localhost`.
 
 ## Deploy API (Render)
 
-- Connect this GitHub repo to Render as a Web Service.
-- Root directory: `apps/api` **or** use the root `render.yaml`.
-- Build: `cd ../.. && npm install && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api`
-- Start: `npm run start -w @gymeasure/api` (from monorepo root) — or see `render.yaml`.
-- Env: `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV=production`.
+See [docs/DEPLOY.md](./docs/DEPLOY.md) for Neon + Render + EAS APK steps.
 
-Free Render web services sleep after idle; the app calls `/health` on launch to wake the API.
-
-## Android APK (EAS)
-
-```bash
-cd apps/mobile
-npx eas-cli login
-npx eas-cli init
-# set extra.eas.projectId in app.json
-EXPO_PUBLIC_API_URL=https://YOUR-RENDER-URL npx eas-cli build -p android --profile preview
-```
-
-Share the APK with your buddy, create accounts, exchange invite codes on the Buddies tab.
+Quick path: connect this GitHub repo on Render via `render.yaml`, set `DATABASE_URL` (Neon) and `JWT_SECRET`, then build an Android APK with EAS using `EXPO_PUBLIC_API_URL` pointed at the Render URL.
