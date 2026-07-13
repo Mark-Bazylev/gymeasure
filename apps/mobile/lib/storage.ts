@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import type { User } from "./api";
 
 const TOKEN_KEY = "gymeasure.token";
@@ -8,17 +7,16 @@ const DAYS_CACHE_KEY = "gymeasure.trainingDays";
 const SESSIONS_CACHE_KEY = "gymeasure.sessions";
 
 export async function saveSession(token: string, user: User) {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await AsyncStorage.setItem(TOKEN_KEY, token);
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export async function clearSession() {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-  await AsyncStorage.multiRemove([USER_KEY, DAYS_CACHE_KEY, SESSIONS_CACHE_KEY]);
+  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, DAYS_CACHE_KEY, SESSIONS_CACHE_KEY]);
 }
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return AsyncStorage.getItem(TOKEN_KEY);
 }
 
 export async function getCachedUser(): Promise<User | null> {
