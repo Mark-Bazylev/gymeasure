@@ -47,7 +47,7 @@ export default function ProgressScreen() {
   return (
     <ScrollView className="flex-1 bg-ink px-4 pt-2">
       <Text className="text-sand/70 mb-3">
-        Volume over time for an Exercise (weight × reps, kg).
+        Volume over time for an Exercise (effective weight × completed reps, kg). Progress UI redesign is next.
       </Text>
       <TextInput
         className="bg-sand/10 border border-sand/20 rounded-xl px-4 py-3 text-sand mb-3"

@@ -11,9 +11,17 @@
     "build:api": "npm run build -w @gymeasure/api",
     "db:generate": "npm run db:generate -w @gymeasure/api",
     "db:migrate": "npm run db:migrate -w @gymeasure/api",
-    "db:push": "npm run db:push -w @gymeasure/api"
+    "db:push": "npm run db:push -w @gymeasure/api",
+    "catalog:import": "npm run catalog:import -w @gymeasure/api",
+    "test": "npm run test -w @gymeasure/shared && npm run test -w @gymeasure/api"
   },
   "engines": {
     "node": ">=20"
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~57.0.7",
+    "react": "19.2.3",
+    "react-native": "0.86.0"
   }
 }

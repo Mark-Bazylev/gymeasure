@@ -5,17 +5,10 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cacheTrainingDays, getCachedTrainingDays } from "@/lib/storage";
 
-type DayExercise = {
-  id: string;
-  name: string;
-  gifUrl: string | null;
-  catalogId: string | null;
-};
-
 type TrainingDay = {
   id: string;
   name: string;
-  exercises: DayExercise[];
+  exercises: { id?: string; name: string; exerciseId: string }[];
 };
 
 export default function DaysScreen() {

@@ -1,11 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, type User, wakeApi } from "./api";
+import { Platform } from "react-native";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { api, configureApiAuth, type User, wakeApi } from "./api";
 import {
   cacheUser,
   clearSession,
   getCachedUser,
+  getRefreshToken,
   getToken,
   saveSession,
+  setAccessToken,
 } from "./storage";
 
 type AuthState = {
@@ -15,6 +19,7 @@ type AuthState = {
   refreshing: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setUser: (user: User) => void;
@@ -22,69 +27,196 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+type AuthResponse = {
+  token?: string;
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      await wakeApi();
-      const [savedToken, cached] = await Promise.all([getToken(), getCachedUser()]);
-      setToken(savedToken);
-      setUserState(cached);
-      if (savedToken) {
-        try {
-          const me = await api<User>("/auth/me", { token: savedToken });
-          setUserState(me);
-          await cacheUser(me);
-        } catch {
-          // keep cached user for soft offline browse
-        }
-      }
-      setLoading(false);
-    })();
-  }, []);
-
   const setUser = useCallback((next: User) => {
     setUserState(next);
     void cacheUser(next);
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    setRefreshing(true);
-    try {
-      await wakeApi();
-      const res = await api<{ token: string; user: User }>("/auth/login", {
-        method: "POST",
-        body: { email, password },
-      });
-      await saveSession(res.token, res.user);
-      setToken(res.token);
-      setUserState(res.user);
-    } finally {
-      setRefreshing(false);
-    }
+  useEffect(() => {
+    configureApiAuth({
+      getAccessToken: () => token,
+      getRefreshToken,
+      onRefreshed: async ({ accessToken, refreshToken, user: nextUser }) => {
+        setToken(accessToken);
+        await setAccessToken(accessToken);
+        if (nextUser) {
+          setUserState(nextUser);
+          await cacheUser(nextUser);
+        }
+        const existingUser = nextUser ?? (await getCachedUser());
+        if (existingUser) {
+          await saveSession(accessToken, refreshToken, existingUser);
+        }
+      },
+      onAuthFailure: async () => {
+        await clearSession();
+        setToken(null);
+        setUserState(null);
+      },
+    });
+  }, [token]);
+
+  useEffect(() => {
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    if (!webClientId) return;
+    GoogleSignin.configure({
+      webClientId,
+      offlineAccess: false,
+    });
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, displayName: string) => {
+  useEffect(() => {
+    (async () => {
+      await wakeApi();
+      const [savedToken, cached, refreshToken] = await Promise.all([
+        getToken(),
+        getCachedUser(),
+        getRefreshToken(),
+      ]);
+      setToken(savedToken);
+      setUserState(cached);
+
+      if (refreshToken) {
+        try {
+          const res = await api<AuthResponse>("/auth/refresh", {
+            method: "POST",
+            body: { refreshToken },
+            skipAuthRefresh: true,
+          });
+          await saveSession(res.accessToken, res.refreshToken, res.user);
+          setToken(res.accessToken);
+          setUserState(res.user);
+        } catch {
+          if (savedToken) {
+            try {
+              const me = await api<User>("/auth/me", { token: savedToken, skipAuthRefresh: true });
+              setUserState(me);
+              await cacheUser(me);
+            } catch {
+              await clearSession();
+              setToken(null);
+              setUserState(null);
+            }
+          } else {
+            await clearSession();
+            setToken(null);
+            setUserState(null);
+          }
+        }
+      } else if (savedToken) {
+        // Legacy token without refresh — force re-login.
+        await clearSession();
+        setToken(null);
+        setUserState(null);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const applyAuth = useCallback(async (res: AuthResponse) => {
+    const accessToken = res.accessToken ?? res.token!;
+    await saveSession(accessToken, res.refreshToken, res.user);
+    setToken(accessToken);
+    setUserState(res.user);
+  }, []);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setRefreshing(true);
+      try {
+        await wakeApi();
+        const res = await api<AuthResponse>("/auth/login", {
+          method: "POST",
+          body: { email, password },
+          skipAuthRefresh: true,
+        });
+        await applyAuth(res);
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [applyAuth],
+  );
+
+  const signUp = useCallback(
+    async (email: string, password: string, displayName: string) => {
+      setRefreshing(true);
+      try {
+        await wakeApi();
+        const res = await api<AuthResponse>("/auth/register", {
+          method: "POST",
+          body: { email, password, displayName },
+          skipAuthRefresh: true,
+        });
+        await applyAuth(res);
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [applyAuth],
+  );
+
+  const signInWithGoogle = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      throw new Error("Google sign-in is available on Android in this release");
+    }
+    if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
+      throw new Error("Google sign-in is not configured");
+    }
     setRefreshing(true);
     try {
       await wakeApi();
-      const res = await api<{ token: string; user: User }>("/auth/register", {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const result = await GoogleSignin.signIn();
+      if (result.type === "cancelled") {
+        throw new Error("Google sign-in cancelled");
+      }
+      const idToken =
+        (result.type === "success" ? result.data?.idToken : null) ??
+        (await GoogleSignin.getTokens()).idToken;
+      if (!idToken) throw new Error("Google did not return an ID token");
+      const res = await api<AuthResponse>("/auth/google", {
         method: "POST",
-        body: { email, password, displayName },
+        body: { idToken },
+        skipAuthRefresh: true,
       });
-      await saveSession(res.token, res.user);
-      setToken(res.token);
-      setUserState(res.user);
+      await applyAuth(res);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [applyAuth]);
 
   const signOut = useCallback(async () => {
+    const refreshToken = await getRefreshToken();
+    try {
+      if (refreshToken) {
+        await api("/auth/logout", {
+          method: "POST",
+          body: { refreshToken },
+          skipAuthRefresh: true,
+        });
+      }
+    } catch {
+      // still clear local session
+    }
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // ignore
+    }
     await clearSession();
     setToken(null);
     setUserState(null);
@@ -104,11 +236,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshing,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
       refreshUser,
       setUser,
     }),
-    [user, token, loading, refreshing, signIn, signUp, signOut, refreshUser, setUser],
+    [
+      user,
+      token,
+      loading,
+      refreshing,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      signOut,
+      refreshUser,
+      setUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

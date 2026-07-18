@@ -17,7 +17,7 @@ web-build/
 .DS_Store
 coverage/
 .turbo/
-apps/api/drizzle/meta/
+apps/api/media/
 *.tsbuildinfo
 eas.json.bak
 .claude/

@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: .
-    buildCommand: npm install && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api
+    buildCommand: npm install --include=dev && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api
     startCommand: npm run start -w @gymeasure/api
     healthCheckPath: /health
     envVars:
@@ -16,3 +16,21 @@ services:
         generateValue: true
       - key: DATABASE_SSL
         value: "true"
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: ALLOW_CATALOG_IMPORT
+        value: "false"
+      - key: GOOGLE_WEB_CLIENT_ID
+        sync: false
+      - key: GOOGLE_ANDROID_CLIENT_ID
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_BASE_URL
+        sync: false

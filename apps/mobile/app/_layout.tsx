@@ -35,7 +35,8 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="day/[id]" options={{ headerShown: true, title: "Training Day" }} />
       <Stack.Screen name="day/new" options={{ headerShown: true, title: "New Training Day" }} />
-      <Stack.Screen name="session/new" options={{ headerShown: true, title: "Log Session" }} />
+      <Stack.Screen name="session/new" options={{ headerShown: true, title: "Start Session" }} />
+      <Stack.Screen name="session/[id]" options={{ headerShown: true, title: "Session" }} />
       <Stack.Screen name="buddy/[id]" options={{ headerShown: true, title: "Buddy" }} />
       <Stack.Screen name="compare/[buddyId]" options={{ headerShown: true, title: "Compare" }} />
     </Stack>

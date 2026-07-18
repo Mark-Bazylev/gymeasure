@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { authRouter } from "./routes/auth";
 import { trainingDaysRouter } from "./routes/trainingDays";
 import { sessionsRouter } from "./routes/sessions";
@@ -10,6 +11,9 @@ import { exercisesRouter } from "./routes/exercises";
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+const mediaRoot = process.env.MEDIA_DIR || path.join(process.cwd(), "media");
+app.use("/media", express.static(mediaRoot));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "gymeasure-api" });

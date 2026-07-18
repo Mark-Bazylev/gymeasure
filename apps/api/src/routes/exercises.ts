@@ -1,75 +1,101 @@
 import { Router } from "express";
+import { and, asc, count, eq, ilike, or, sql } from "drizzle-orm";
+import { db } from "../db/client";
+import { exercises } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
+import { importWgerCatalog } from "../lib/catalogImport";
 
-/**
- * Proxies ExerciseDB free API so the mobile app does not embed the API key.
- * Docs: https://oss.exercisedb.dev/docs
- */
 export const exercisesRouter = Router();
 exercisesRouter.use(requireAuth);
 
-const BASE = process.env.EXERCISEDB_BASE_URL ?? "https://exercisedb-api-v1.p.rapidapi.com";
+function publicExercise(row: typeof exercises.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    bodyPart: row.bodyPart,
+    equipment: row.equipment,
+    muscles: row.muscles,
+    loadingType: row.loadingType,
+    imageUrl: row.imageUrl,
+    attribution: row.attribution,
+    licenseName: row.licenseName,
+    licenseAuthor: row.licenseAuthor,
+  };
+}
 
-exercisesRouter.get("/search", async (req, res) => {
+exercisesRouter.get("/", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  if (!q) return res.status(400).json({ error: "q required" });
+  const bodyPart = typeof req.query.bodyPart === "string" ? req.query.bodyPart.trim() : "";
+  const equipment = typeof req.query.equipment === "string" ? req.query.equipment.trim() : "";
+  const limit = Math.min(Number(req.query.limit ?? 40) || 40, 100);
+  const offset = Math.max(Number(req.query.offset ?? 0) || 0, 0);
 
-  const apiKey = process.env.EXERCISEDB_API_KEY;
-  // Free OSS endpoint variant (no RapidAPI key) when configured
-  const ossBase = process.env.EXERCISEDB_OSS_URL ?? "https://exercisedb.dev/api/v1";
-
-  try {
-    if (apiKey) {
-      const url = `${BASE}/exercises/name/${encodeURIComponent(q)}?limit=20`;
-      const response = await fetch(url, {
-        headers: {
-          "X-RapidAPI-Key": apiKey,
-          "X-RapidAPI-Host": process.env.EXERCISEDB_HOST ?? "exercisedb-api-v1.p.rapidapi.com",
-        },
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        return res.status(502).json({ error: "ExerciseDB error", detail: text.slice(0, 200) });
-      }
-      const data = (await response.json()) as unknown;
-      const list = Array.isArray(data) ? data : (data as { data?: unknown[] }).data ?? [];
-      return res.json(
-        (list as Record<string, unknown>[]).map((ex) => ({
-          catalogId: String(ex.id ?? ex.exerciseId ?? ""),
-          name: String(ex.name ?? ""),
-          gifUrl: (ex.gifUrl as string) ?? (ex.gif as string) ?? null,
-          bodyPart: ex.bodyPart ?? null,
-          equipment: ex.equipment ?? null,
-          isCustom: false,
-        })),
-      );
-    }
-
-    // OSS search fallback
-    const url = `${ossBase}/exercises/search?q=${encodeURIComponent(q)}&limit=20`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      // If remote catalog is down, return empty so custom exercises still work
-      return res.json([]);
-    }
-    const data = (await response.json()) as unknown;
-    const list = Array.isArray(data)
-      ? data
-      : (data as { data?: unknown[]; exercises?: unknown[] }).data ??
-        (data as { exercises?: unknown[] }).exercises ??
-        [];
-    return res.json(
-      (list as Record<string, unknown>[]).slice(0, 20).map((ex) => ({
-        catalogId: String(ex.id ?? ex.exerciseId ?? ""),
-        name: String(ex.name ?? ""),
-        gifUrl: (ex.gifUrl as string) ?? (ex.gif as string) ?? null,
-        bodyPart: ex.bodyPart ?? null,
-        equipment: ex.equipment ?? null,
-        isCustom: false,
-      })),
+  const filters = [];
+  if (q) {
+    const pattern = `%${q}%`;
+    filters.push(
+      or(
+        ilike(exercises.name, pattern),
+        ilike(exercises.muscles, pattern),
+        ilike(exercises.equipment, pattern),
+        ilike(exercises.bodyPart, pattern),
+      )!,
     );
-  } catch (err) {
-    console.error("Exercise search failed", err);
-    return res.json([]);
   }
+  if (bodyPart) filters.push(ilike(exercises.bodyPart, bodyPart));
+  if (equipment) filters.push(ilike(exercises.equipment, `%${equipment}%`));
+
+  const where = filters.length ? and(...filters) : undefined;
+
+  const [totalRow] = await db.select({ value: count() }).from(exercises).where(where);
+  const rows = await db
+    .select()
+    .from(exercises)
+    .where(where)
+    .orderBy(asc(exercises.name))
+    .limit(limit)
+    .offset(offset);
+
+  return res.json({
+    total: totalRow?.value ?? 0,
+    items: rows.map(publicExercise),
+  });
+});
+
+exercisesRouter.get("/filters", async (_req, res) => {
+  const bodyParts = await db
+    .selectDistinct({ value: exercises.bodyPart })
+    .from(exercises)
+    .where(sql`${exercises.bodyPart} is not null`)
+    .orderBy(asc(exercises.bodyPart));
+  const equipmentRows = await db
+    .selectDistinct({ value: exercises.equipment })
+    .from(exercises)
+    .where(sql`${exercises.equipment} is not null`)
+    .orderBy(asc(exercises.equipment));
+
+  return res.json({
+    bodyParts: bodyParts.map((r) => r.value).filter(Boolean),
+    equipment: equipmentRows.map((r) => r.value).filter(Boolean),
+  });
+});
+
+exercisesRouter.get("/:id", async (req, res) => {
+  const row = await db.query.exercises.findFirst({
+    where: eq(exercises.id, req.params.id!),
+  });
+  if (!row) return res.status(404).json({ error: "Exercise not found" });
+  return res.json(publicExercise(row));
+});
+
+/** Admin/dev endpoint — protected by shared auth; intended for operators. */
+exercisesRouter.post("/import", async (req, res) => {
+  if (process.env.ALLOW_CATALOG_IMPORT !== "true") {
+    return res.status(403).json({ error: "Catalog import disabled" });
+  }
+  const result = await importWgerCatalog({
+    maxPages: typeof req.body?.maxPages === "number" ? req.body.maxPages : undefined,
+  });
+  return res.json(result);
 });

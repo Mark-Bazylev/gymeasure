@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { CalendarDays, ChartLine, Dumbbell, Settings, Users } from "lucide-react-native";
 import { Text } from "react-native";
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
@@ -28,6 +29,9 @@ export default function TabsLayout() {
         options={{
           title: "Days",
           tabBarLabel: ({ focused }) => <TabLabel label="Days" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <CalendarDays color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -35,6 +39,9 @@ export default function TabsLayout() {
         options={{
           title: "Sessions",
           tabBarLabel: ({ focused }) => <TabLabel label="Sessions" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Dumbbell color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -42,6 +49,9 @@ export default function TabsLayout() {
         options={{
           title: "Progress",
           tabBarLabel: ({ focused }) => <TabLabel label="Progress" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <ChartLine color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -49,6 +59,9 @@ export default function TabsLayout() {
         options={{
           title: "Buddies",
           tabBarLabel: ({ focused }) => <TabLabel label="Buddies" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Users color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -56,6 +69,9 @@ export default function TabsLayout() {
         options={{
           title: "Settings",
           tabBarLabel: ({ focused }) => <TabLabel label="Settings" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Settings color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+          ),
         }}
       />
     </Tabs>

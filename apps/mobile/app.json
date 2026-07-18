@@ -25,15 +25,22 @@
       "package": "com.gymeasure.app"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-dev-client",
+      "expo-image",
+      "expo-status-bar",
+      "expo-secure-store",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "eas": {
-        "projectId": "replace-with-eas-project-id"
-      }
-    }
+        "projectId": "d6b0e421-ebec-446b-901a-486b1b310f13"
+      },
+      "router": {}
+    },
+    "owner": "markbazylev"
   }
 }

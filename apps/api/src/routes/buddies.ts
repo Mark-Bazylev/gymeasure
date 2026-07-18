@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { and, asc, desc, eq, or } from "drizzle-orm";
-import { linkBuddySchema } from "@gymeasure/shared";
+import { effectiveWeightKg, linkBuddySchema, type LoadingType } from "@gymeasure/shared";
 import { db } from "../db/client";
 import { buddyLinks, sessionExercises, sessions, sets, users } from "../db/schema";
 import { normalizeInviteCode, orderedBuddyPair } from "../lib/ids";
@@ -81,13 +81,13 @@ buddiesRouter.get("/:buddyId/profile", async (req, res) => {
   if (!buddy) return res.status(404).json({ error: "User not found" });
 
   const recentSessions = await db.query.sessions.findMany({
-    where: eq(sessions.userId, buddyId),
+    where: and(eq(sessions.userId, buddyId), eq(sessions.status, "completed")),
     orderBy: [desc(sessions.performedAt)],
     limit: 20,
   });
   const detailed = [];
   for (const session of recentSessions) {
-    const exercises = await db.query.sessionExercises.findMany({
+    const exerciseRows = await db.query.sessionExercises.findMany({
       where: eq(sessionExercises.sessionId, session.id),
       orderBy: [asc(sessionExercises.sortOrder)],
     });
@@ -95,11 +95,12 @@ buddiesRouter.get("/:buddyId/profile", async (req, res) => {
       id: session.id,
       performedAt: session.performedAt,
       notes: session.notes,
-      exercises: exercises.map((e) => ({
+      exercises: exerciseRows.map((e) => ({
         id: e.id,
         name: e.name,
-        catalogId: e.catalogId,
-        gifUrl: e.gifUrl,
+        exerciseId: e.exerciseId,
+        imageUrl: e.imageUrl,
+        loadingType: e.loadingType,
       })),
     });
   }
@@ -117,38 +118,52 @@ buddiesRouter.get("/:buddyId/compare", async (req, res) => {
   if (!(await areBuddies(req.user!.id, buddyId))) {
     return res.status(403).json({ error: "Not Gym Buddies" });
   }
-  const catalogId = typeof req.query.catalogId === "string" ? req.query.catalogId : null;
+  const exerciseId =
+    typeof req.query.exerciseId === "string"
+      ? req.query.exerciseId
+      : typeof req.query.catalogId === "string"
+        ? req.query.catalogId
+        : null;
   const name = typeof req.query.name === "string" ? req.query.name : null;
-  if (!catalogId && !name) {
-    return res.status(400).json({ error: "catalogId or name required" });
+  if (!exerciseId && !name) {
+    return res.status(400).json({ error: "exerciseId or name required" });
   }
 
   async function volumeSeries(userId: string) {
-    const exerciseFilter = catalogId
-      ? eq(sessionExercises.catalogId, catalogId)
+    const exerciseFilter = exerciseId
+      ? eq(sessionExercises.exerciseId, exerciseId)
       : eq(sessionExercises.name, name!);
 
     const rows = await db
       .select({
         performedAt: sessions.performedAt,
         sessionId: sessions.id,
+        bodyweightKg: sessions.bodyweightKg,
+        loadingType: sessionExercises.loadingType,
         weightKg: sets.weightKg,
         reps: sets.reps,
+        status: sets.status,
       })
       .from(sessions)
       .innerJoin(sessionExercises, eq(sessionExercises.sessionId, sessions.id))
       .innerJoin(sets, eq(sets.sessionExerciseId, sessionExercises.id))
-      .where(and(eq(sessions.userId, userId), exerciseFilter))
+      .where(and(eq(sessions.userId, userId), eq(sessions.status, "completed"), exerciseFilter))
       .orderBy(asc(sessions.performedAt));
 
     const bySession = new Map<string, { date: string; volume: number }>();
     for (const row of rows) {
+      if (row.status !== "completed" || row.reps == null || row.weightKg == null) continue;
       const key = row.sessionId;
       const current = bySession.get(key) ?? {
         date: row.performedAt.toISOString(),
         volume: 0,
       };
-      current.volume += Number(row.weightKg) * row.reps;
+      current.volume +=
+        effectiveWeightKg({
+          loadingType: row.loadingType as LoadingType,
+          weightKg: Number(row.weightKg),
+          bodyweightKg: row.bodyweightKg != null ? Number(row.bodyweightKg) : null,
+        }) * row.reps;
       bySession.set(key, current);
     }
     return Array.from(bySession.values());
@@ -162,7 +177,7 @@ buddiesRouter.get("/:buddyId/compare", async (req, res) => {
   ]);
 
   return res.json({
-    exercise: { catalogId, name },
+    exercise: { exerciseId, catalogId: exerciseId, name },
     me: { id: me?.id, displayName: me?.displayName, points: myPoints },
     buddy: { id: buddy?.id, displayName: buddy?.displayName, points: buddyPoints },
   });

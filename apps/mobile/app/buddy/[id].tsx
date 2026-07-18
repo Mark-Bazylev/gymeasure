@@ -11,7 +11,7 @@ type Profile = {
   sessions: {
     id: string;
     performedAt: string;
-    exercises: { name: string; catalogId: string | null }[];
+    exercises: { name: string; exerciseId: string }[];
   }[];
 };
 
