@@ -1,8 +1,27 @@
-# Accidental root-level Expo prebuild leftovers
-/android
+# When .easignore exists, EAS ignores .gitignore — keep both in sync.
+node_modules/
+.git/
+.expo/
+dist/
+build/
+.turbo/
+coverage/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Native / local build artifacts
+**/android/
+**/ios/
+/android/
 /app.json
 /tsconfig.json
 
-# Local env and media
-**/.env
+# Large local media (catalog images are hosted in prod)
+apps/api/media/
 **/media/
+
+# Misc
+**/.DS_Store
+**/*.log
+**/tmp/
