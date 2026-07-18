@@ -1,0 +1,8 @@
+# Accidental root-level Expo prebuild leftovers
+/android
+/app.json
+/tsconfig.json
+
+# Local env and media
+**/.env
+**/media/

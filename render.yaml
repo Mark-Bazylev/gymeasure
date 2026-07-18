@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: .
-    buildCommand: npm install --include=dev && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api
+    buildCommand: npm install --include=dev --legacy-peer-deps && npm run build -w @gymeasure/shared && npm run build -w @gymeasure/api
     startCommand: npm run start -w @gymeasure/api
     healthCheckPath: /health
     envVars:
